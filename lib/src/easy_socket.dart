@@ -371,6 +371,31 @@ class EasySocket {
     return completer.future;
   }
 
+  /// Drops the current connection, if any, and connects again right away,
+  /// skipping any retry delay. Listeners and queued messages are kept, and
+  /// [onConnected] runs again.
+  ///
+  /// Use it when the app returns to the foreground or the network changes,
+  /// when the old connection may be dead without anyone noticing yet.
+  /// Completes once connected.
+  Future<void> reconnect() {
+    _assertNotDisposed();
+    final channel = _channel;
+    // Forget the old connection and any attempt in flight.
+    _generation++;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    _connectTimer?.cancel();
+    _connectTimer = null;
+    _detach();
+    channel?.sink.close(status.normalClosure).ignore();
+    _manuallyClosed = false;
+    _attempt = 0;
+    final completer = _connected ??= Completer<void>();
+    _open(reconnecting: true);
+    return completer.future;
+  }
+
   /// Closes the connection and stops reconnecting. Listeners and queued
   /// messages are kept, so a later [connect], [on], [once], [onAny], [emit]
   /// or [send] reopens it.
@@ -410,9 +435,11 @@ class EasySocket {
     }
   }
 
-  Future<void> _open() async {
+  Future<void> _open({bool reconnecting = false}) async {
     _setState(
-      _attempt == 0 ? SocketState.connecting : SocketState.reconnecting,
+      _attempt == 0 && !reconnecting
+          ? SocketState.connecting
+          : SocketState.reconnecting,
     );
     final generation = _generation;
     bool stale() => _manuallyClosed || _disposed || generation != _generation;
@@ -587,8 +614,9 @@ class EasySocket {
     _detach();
     if (_manuallyClosed || _disposed) return;
     if (!shouldReconnect(code, reason)) {
-      _setState(SocketState.closed);
+      // Report first, so a listener reacting to `closed` already has it.
       _reportError(SocketRejectedException(code, reason));
+      _setState(SocketState.closed);
       return;
     }
     _scheduleReconnect();
@@ -733,7 +761,14 @@ class EasySocket {
   void _log(String message) {
     if (!debug) return;
     for (final secret in _secrets) {
-      message = message.replaceAll(secret, '***');
+      // Only whole values: a token like "demo" must not blank out part of
+      // "easy-chat-demo.example.com".
+      message = message.replaceAll(
+        RegExp(
+          '(?<![A-Za-z0-9._~-])${RegExp.escape(secret)}(?![A-Za-z0-9._~-])',
+        ),
+        '***',
+      );
     }
     final logger = _logger;
     if (logger != null) {

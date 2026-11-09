@@ -1,3 +1,13 @@
+## 0.1.1
+
+- `reconnect()` drops the current connection and connects again right away.
+  Use it when the app returns to the foreground or the network changes.
+- A refused connection is reported to `onError` before the state changes to
+  `closed`, so state listeners can already see why.
+- Debug logs redact auth values only as whole values, so a short token no
+  longer blanks out parts of the URL.
+- Link to the live demo.
+
 ## 0.1.0
 
 - Initial release: lazy connect, auto-reconnect with backoff, message format
