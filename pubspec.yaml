@@ -1,17 +1,21 @@
 name: easy_socket
 description: Websocket events with zero setup. Lazy connect, auto-reconnect, message format auto-detection and event routing.
 version: 0.1.0
-# repository: https://github.com/my_org/my_repo
+repository: https://github.com/dartpilot0017/easy_socket
+issue_tracker: https://github.com/dartpilot0017/easy_socket/issues
+topics:
+  - websocket
+  - socket
+  - realtime
+  - networking
 
 environment:
-  sdk: ^3.13.4
+  sdk: ^3.8.0
 
-# Add regular dependencies here.
 dependencies:
   web_socket_channel: ^3.0.3
-  # path: ^1.9.0
 
 dev_dependencies:
   lints: ^6.0.0
   stream_channel: ^2.1.4
-  test: ^1.33.0
+  test: ^1.26.0

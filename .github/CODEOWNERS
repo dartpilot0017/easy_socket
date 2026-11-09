@@ -1,0 +1,7 @@
+# Every change needs the maintainer's approval before it can merge into
+# main or dev. That matters most for the workflows and the security checker,
+# which a pull request could otherwise edit to switch the checks off.
+*                         @dartpilot0017
+/.github/                 @dartpilot0017
+/tool/check_suspicious.sh @dartpilot0017
+/pubspec.yaml             @dartpilot0017

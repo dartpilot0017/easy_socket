@@ -16,11 +16,12 @@ typedef EventHandler = void Function(Object? data);
 ///
 /// [uri] already includes any `queryParameters`, and [headers] holds the
 /// result of `headers` (empty when not set).
-typedef ChannelFactory = WebSocketChannel Function(
-  Uri uri,
-  Iterable<String>? protocols,
-  Map<String, String> headers,
-);
+typedef ChannelFactory =
+    WebSocketChannel Function(
+      Uri uri,
+      Iterable<String>? protocols,
+      Map<String, String> headers,
+    );
 
 /// A websocket client that connects lazily, reconnects automatically and
 /// routes incoming messages to listeners by event name.
@@ -50,11 +51,15 @@ class EasySocket {
     this.headers,
     this.onConnected,
     this.debug = false,
-    this._logger,
-    this._decoder,
-    this._encoder,
-    this._channelFactory,
-  }) : uri = Uri.parse(url);
+    void Function(String message)? logger,
+    EventDecoder? decoder,
+    EventEncoder? encoder,
+    ChannelFactory? channelFactory,
+  }) : uri = Uri.parse(url),
+       _logger = logger,
+       _decoder = decoder,
+       _encoder = encoder,
+       _channelFactory = channelFactory;
 
   /// The server address.
   final Uri uri;

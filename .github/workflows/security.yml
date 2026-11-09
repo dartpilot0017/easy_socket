@@ -1,0 +1,72 @@
+name: Security
+
+# Runs on every push and pull request. The jobs below are required checks on
+# main and dev (see .github/rulesets), so a pull request can't be merged
+# while any of them fails.
+on:
+  push:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+# Read-only token: a malicious pull request can't use it to change anything.
+permissions:
+  contents: read
+
+jobs:
+  malware:
+    name: malware
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install ClamAV and update signatures
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clamav
+          sudo systemctl stop clamav-freshclam || true
+          sudo freshclam --quiet
+      - name: Scan every file
+        run: clamscan --recursive --infected --exclude-dir='^\./\.git$' .
+
+  secrets:
+    name: secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Scan history for leaked credentials
+        uses: trufflesecurity/trufflehog@ea68ca03c865c5f324e86e849ced20ed3cf9dbbb # v3.99.8
+        with:
+          path: ./
+          base: ''
+          head: HEAD
+          extra_args: --results=verified,unknown
+
+  dependencies:
+    name: dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
+      - run: dart pub get
+      - name: Check every resolved package for known vulnerabilities
+        uses: google/osv-scanner-action/osv-scanner-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
+        with:
+          scan-args: |-
+            --lockfile=pubspec.lock
+
+  suspicious:
+    name: suspicious
+    # The gate is the pull request, where a maintainer can mark flagged
+    # changes as reviewed. Pushes to main and dev only come from those.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Look for risky changes
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          REVIEWED: ${{ contains(github.event.pull_request.labels.*.name, 'security-reviewed') }}
+        run: bash tool/check_suspicious.sh "$BASE"

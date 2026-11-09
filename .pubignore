@@ -1,0 +1,8 @@
+# Keep the published package to what users need: lib, example, docs.
+# (A .pubignore replaces .gitignore for publishing, so repeat those rules.)
+.dart_tool/
+pubspec.lock
+test/
+.github/
+SECURITY.md
+tool/

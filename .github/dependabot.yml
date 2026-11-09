@@ -1,0 +1,12 @@
+# Opens pull requests for dependency and GitHub Action updates, which then go
+# through the same checks and review as any other change.
+version: 2
+updates:
+  - package-ecosystem: pub
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

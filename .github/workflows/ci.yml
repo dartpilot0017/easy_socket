@@ -4,22 +4,27 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
+    name: test (${{ matrix.sdk }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         # The lowest SDK pubspec.yaml allows, and the latest stable.
-        sdk: [3.13.4, stable]
+        sdk: [3.8.0, stable]
     steps:
-      - uses: actions/checkout@v4
-      - uses: dart-lang/setup-dart@v1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
         with:
           sdk: ${{ matrix.sdk }}
       - run: dart pub get
       - run: dart format --output=none --set-exit-if-changed .
+        if: matrix.sdk == 'stable'
       - run: dart analyze --fatal-infos
       - run: dart test -p vm
       - run: dart test -p chrome
-      - run: dart pub publish --dry-run || true # warns until a repository is set
+      - run: dart pub publish --dry-run
