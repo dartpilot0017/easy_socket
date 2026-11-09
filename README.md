@@ -12,6 +12,11 @@ socket.emit('chat.send', {'text': 'hello'});
 There's no `connect()`, `jsonDecode` or reconnect loop to write. It works on
 mobile, desktop and web.
 
+**Live demo:** [easy-chat-app.onrender.com](https://easy-chat-app.onrender.com),
+a chat app with a playground for dropping the connection, going offline,
+getting kicked and switching message formats
+([source](https://github.com/dartpilot0017/easy_chat)).
+
 ## What it handles for you
 
 - **Lazy connect.** The first `on`, `emit` or `stream` call opens the connection.
@@ -46,6 +51,7 @@ socket.state;                // idle, connecting, connected, reconnecting, close
 socket.onStateChange.listen(print);
 
 await socket.connect();      // optional
+await socket.reconnect();    // drop the connection and reconnect right away
 await socket.close();        // keeps listeners; on/once/emit/send/connect reopen it
 await socket.dispose();
 ```
@@ -97,16 +103,17 @@ are kept:
 ```dart
 final lifecycle = AppLifecycleListener(
   onHide: socket.close,
-  onShow: socket.connect,
+  onShow: socket.reconnect,
 );
 ```
 
-When the network comes back, `connect()` skips the remaining retry delay
+When the network changes, `reconnect()` replaces a connection that may have
+died without anyone noticing, and skips any remaining retry delay
 (here with `connectivity_plus`):
 
 ```dart
 Connectivity().onConnectivityChanged.listen((results) {
-  if (!results.contains(ConnectivityResult.none)) socket.connect();
+  if (!results.contains(ConnectivityResult.none)) socket.reconnect();
 });
 ```
 
