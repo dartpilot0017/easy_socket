@@ -478,4 +478,91 @@ void main() {
     expect(all, contains('token=***'));
     await s.dispose();
   });
+
+  group('reconnect()', () {
+    test('replaces a live connection and keeps listeners', () async {
+      var connects = 0;
+      final s = EasySocket(server.url, onConnected: (_) => connects++);
+      final got = <Object?>[];
+      s.on('n', got.add);
+      await s.connect();
+      final states = <SocketState>[];
+      s.onStateChange.listen(states.add);
+
+      await s.reconnect().timeout(const Duration(seconds: 2));
+      expect(states, [SocketState.reconnecting, SocketState.connected]);
+      expect(server.connections, 2);
+      expect(connects, 2);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(server.clients, hasLength(1), reason: 'old connection closed');
+
+      server.broadcast({'event': 'n', 'data': 1});
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(got, [1]);
+      await s.dispose();
+    });
+
+    test('skips the retry wait and reopens after close()', () async {
+      final s = EasySocket(
+        server.url,
+        minReconnectDelay: const Duration(seconds: 30),
+        maxReconnectDelay: const Duration(seconds: 30),
+      );
+      await s.connect();
+      final waiting = s.onStateChange.firstWhere(
+        (x) => x == SocketState.reconnecting,
+      );
+      await server.dropClients();
+      await waiting;
+      await s.reconnect().timeout(const Duration(seconds: 2));
+      await s.close();
+      await s.reconnect().timeout(const Duration(seconds: 2));
+      expect(s.isConnected, isTrue);
+      expect(server.connections, 3);
+      await s.dispose();
+    });
+
+    test('queued messages go out on the new connection', () async {
+      final s = EasySocket(server.url, formatDetectionWindow: Duration.zero);
+      await s.connect();
+      await s.close();
+      s.send('{"event":"queued"}');
+      final got = server.received.stream.first;
+      await s.reconnect();
+      expect(await got, {'event': 'queued'});
+      await s.dispose();
+    });
+  });
+
+  test('a refusal is reported before the closed state', () async {
+    final errors = <Object>[];
+    socket.onError(errors.add);
+    await socket.connect();
+    late List<Object> seenAtClosed;
+    socket.onStateChange.listen((s) {
+      if (s == SocketState.closed) seenAtClosed = List.of(errors);
+    });
+    final closed = socket.onStateChange.firstWhere(
+      (s) => s == SocketState.closed,
+    );
+    await server.dropClients(1008);
+    await closed;
+    expect(seenAtClosed.single, isA<SocketRejectedException>());
+  });
+
+  test('redaction leaves a token inside a longer word alone', () async {
+    final logs = <String>[];
+    final s = EasySocket(
+      '${server.url}/demo-room',
+      debug: true,
+      logger: logs.add,
+      queryParameters: () => {'token': 'demo'},
+    );
+    await s.connect();
+    final line = logs.firstWhere((l) => l.contains('connecting to'));
+    expect(line, contains('/demo-room'));
+    expect(line, contains('token=***'));
+    expect(line, isNot(contains('token=demo')));
+    await s.dispose();
+  });
 }
