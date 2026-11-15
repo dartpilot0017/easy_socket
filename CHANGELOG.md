@@ -1,3 +1,16 @@
+## 0.1.2
+
+- A connection request the server answers with HTTP 4xx (401 Unauthorized,
+  403 Forbidden, 404…) now counts as refused: the socket stops retrying and
+  reports a `SocketRejectedException` with the new `httpStatus` field, and
+  `code` set to `4000 + status`. 408 and 429 are still retried. Works on the
+  Dart VM (mobile, desktop, server); browsers hide the status, so on the web
+  these are still retried.
+- `defaultShouldReconnect` now refuses close codes 4400 to 4499 (it used to
+  refuse only 4401 and 4403), except 4408 and 4429.
+- The refusal is reported without the raw connection error, which contains
+  the full URL including any token.
+
 ## 0.1.1
 
 - `reconnect()` drops the current connection and connects again right away.

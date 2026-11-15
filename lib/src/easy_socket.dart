@@ -85,14 +85,29 @@ class EasySocket {
   /// with [closeCode]. When it returns `false`, the socket closes and reports
   /// a [SocketRejectedException] to [onError].
   ///
+  /// It also decides about an HTTP error answer to the connection request,
+  /// passed as `4000 + status` (4401 for 401) with the reason `HTTP 401`.
+  /// Browsers hide that status, so on the web those failures are retried
+  /// like any other connection error.
+  ///
   /// Defaults to [defaultShouldReconnect].
   final bool Function(int? closeCode, String? closeReason) shouldReconnect;
 
-  /// Reconnects unless the close code says the server refuses this client:
+  /// Reconnects unless the code says the server refuses this client:
   /// protocol error (1002), unsupported data (1003), invalid data (1007),
-  /// policy violation (1008), or the common auth codes 4401 and 4403.
-  static bool defaultShouldReconnect(int? closeCode, String? closeReason) =>
-      !const {1002, 1003, 1007, 1008, 4401, 4403}.contains(closeCode);
+  /// policy violation (1008), or 4400 to 4499, the client errors (an HTTP
+  /// 4xx refusal, or a server using that convention for close codes, such as
+  /// 4401 and 4403). 4408 (timeout) and 4429 (too many requests) are still
+  /// retried, as backing off can help with those.
+  static bool defaultShouldReconnect(int? closeCode, String? closeReason) {
+    if (const {1002, 1003, 1007, 1008}.contains(closeCode)) return false;
+    if (closeCode == null || closeCode < 4400 || closeCode > 4499) return true;
+    return closeCode == 4408 || closeCode == 4429;
+  }
+
+  /// The HTTP status in a failed connection request, which dart:io only
+  /// gives in its message: `... HTTP status code: 401`.
+  static final _httpStatus = RegExp(r'HTTP status code: (\d{3})\b');
 
   /// How long opening the connection, including [onConnected], may take
   /// before the attempt counts as failed.
@@ -466,6 +481,29 @@ class EasySocket {
     } catch (error) {
       channel?.sink.close().ignore();
       if (stale()) return;
+      final status = _httpStatus.firstMatch('$error')?.group(1);
+      if (status != null) {
+        final httpStatus = int.parse(status);
+        final code = 4000 + httpStatus;
+        final reason = 'HTTP $httpStatus';
+        if (httpStatus >= 400 &&
+            httpStatus < 500 &&
+            !shouldReconnect(code, reason)) {
+          // Refused before the connection opened (bad token, forbidden).
+          // The raw error holds the full URL, token included, so report
+          // this instead.
+          final rejected = SocketRejectedException(
+            code,
+            reason,
+            httpStatus: httpStatus,
+          );
+          _log('refused with HTTP $httpStatus');
+          _reportError(rejected);
+          _setState(SocketState.closed);
+          _failPendingConnect(rejected);
+          return;
+        }
+      }
       _reportError(error);
       if (error is UnsupportedError) {
         // Retrying can't help (for example headers in a browser).
