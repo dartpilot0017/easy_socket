@@ -17,6 +17,9 @@ class TestServer {
   /// Accept the TCP connection but never answer the upgrade.
   bool stall = false;
 
+  /// Answer the upgrade request with this HTTP status instead of upgrading.
+  int? rejectStatus;
+
   /// Answer `{"event": "ping"}` with `{"event": "pong"}`.
   bool replyToPing = false;
 
@@ -30,6 +33,13 @@ class TestServer {
     _http.listen((req) async {
       requests.add((req.uri, req.headers.value('authorization')));
       if (stall) return;
+      if (rejectStatus case final status?) {
+        req.response
+          ..statusCode = status
+          ..write('refused')
+          ..close();
+        return;
+      }
       final ws = await WebSocketTransformer.upgrade(req);
       connections++;
       clients.add(ws);

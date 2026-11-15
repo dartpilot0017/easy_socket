@@ -565,4 +565,66 @@ void main() {
     expect(line, isNot(contains('token=demo')));
     await s.dispose();
   });
+
+  group('HTTP status on the handshake', () {
+    EasySocket refusing(int status, {bool Function(int?, String?)? retry}) {
+      server.rejectStatus = status;
+      return EasySocket(
+        '${server.url}?token=secret-token-1',
+        minReconnectDelay: const Duration(milliseconds: 5),
+        maxReconnectDelay: const Duration(milliseconds: 20),
+        shouldReconnect: retry ?? EasySocket.defaultShouldReconnect,
+      );
+    }
+
+    for (final status in [401, 403, 404]) {
+      test('$status is refused without retrying', () async {
+        final errors = <Object>[];
+        final s = refusing(status)..onError(errors.add);
+        final error = await s.connect().then<Object?>(
+          (_) => null,
+          onError: (Object e) => e,
+        );
+        expect(error, isA<SocketRejectedException>());
+        final rejected = error! as SocketRejectedException;
+        expect(rejected.httpStatus, status);
+        expect(rejected.code, 4000 + status);
+        expect(s.state, SocketState.closed);
+
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+        expect(server.requests, hasLength(1), reason: 'no retries');
+        expect(errors.single, same(rejected));
+        expect('$rejected', isNot(contains('secret-token-1')));
+        await s.dispose();
+      });
+    }
+
+    for (final status in [408, 429, 500, 503]) {
+      test('$status is retried', () async {
+        final s = refusing(status);
+        s.connect().ignore();
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+        expect(server.requests.length, greaterThan(1));
+        expect(s.state, SocketState.reconnecting);
+        await s.dispose();
+      });
+    }
+
+    test('shouldReconnect can choose to retry a 401', () async {
+      final s = refusing(401, retry: (code, reason) => true);
+      s.connect().ignore();
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      expect(server.requests.length, greaterThan(1));
+      await s.dispose();
+    });
+
+    test('a refusal that clears up connects normally later', () async {
+      final s = refusing(401);
+      await expectLater(s.connect(), throwsA(isA<SocketRejectedException>()));
+      server.rejectStatus = null;
+      await s.connect().timeout(const Duration(seconds: 2));
+      expect(s.isConnected, isTrue);
+      await s.dispose();
+    });
+  });
 }
