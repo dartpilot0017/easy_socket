@@ -11,6 +11,15 @@ Thanks for helping out! A few rules keep `main` releasable.
 - Nobody pushes to `main` or `dev` directly. Both need a pull request,
   passing checks and the maintainer's approval.
 
+## Releases
+
+1. Bump `version:` in `pubspec.yaml` and add a `CHANGELOG.md` entry in your
+   pull request to `dev`.
+2. Merge `dev` into `main`.
+3. The **Tag release** workflow tags the commit that set the version
+   (`v1.2.3`) automatically. There's no need to tag by hand.
+4. Publish with `dart pub publish` from `main`.
+
 ## Before opening a pull request
 
 ```bash
