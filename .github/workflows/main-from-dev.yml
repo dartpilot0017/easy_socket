@@ -1,0 +1,32 @@
+name: Main accepts dev only
+
+# A required check on main: a pull request into main must come from this
+# repository's dev branch. Every other pull request goes to dev first.
+# `edited` re-runs it when someone changes a pull request's target branch.
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+
+permissions: {}
+
+jobs:
+  from-dev:
+    name: from-dev
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check where the pull request comes from
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [ "$HEAD_REF" = "dev" ] && [ "$HEAD_REPO" = "$REPO" ]; then
+            echo "From $REPO:dev. Allowed."
+            exit 0
+          fi
+          echo "::error::Pull requests into main must come from $REPO:dev, not $HEAD_REPO:$HEAD_REF."
+          exit 1
+      - name: Explain
+        if: failure()
+        run: echo "Open this pull request against dev instead. Only dev may be merged into main."

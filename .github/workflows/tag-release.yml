@@ -1,0 +1,28 @@
+name: Tag release
+
+# After every push to main, tags the version in pubspec.yaml (for example
+# v0.1.2) if that tag doesn't exist yet. Run it by hand from the Actions tab
+# to fill in a missing tag.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write # to push the tag
+
+concurrency:
+  group: tag-release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Tag the version in pubspec.yaml
+        run: bash tool/tag_release.sh
