@@ -40,23 +40,35 @@ enum SocketState {
   closed,
 }
 
-/// Reported to `onError` when the server closes the connection with a code
-/// that means retrying won't help (see `EasySocket.shouldReconnect`). The
+/// Reported to `onError` when the server refuses the connection in a way
+/// that means retrying won't help (see `EasySocket.shouldReconnect`): a close
+/// code such as 1008, or an HTTP 4xx answer to the connection request. The
 /// socket stays closed until it is used again.
 class SocketRejectedException implements Exception {
   /// Creates the exception for a close [code] and [reason].
-  const SocketRejectedException(this.code, this.reason);
+  const SocketRejectedException(this.code, this.reason, {this.httpStatus});
 
-  /// The websocket close code the server sent.
+  /// The websocket close code the server sent. For an HTTP refusal it is
+  /// `4000 + httpStatus` (4401 for 401), the usual convention for
+  /// application close codes.
   final int? code;
 
   /// The close reason the server sent, if any.
   final String? reason;
 
+  /// The HTTP status when the server refused the connection request itself
+  /// (for example 401 or 403), or `null` when it closed an open connection.
+  ///
+  /// Only available on the Dart VM (mobile, desktop and server). Browsers
+  /// hide the status from web pages.
+  final int? httpStatus;
+
   @override
-  String toString() =>
-      'SocketRejectedException: the server closed the connection with code '
-      '$code${reason != null && reason!.isNotEmpty ? ' ($reason)' : ''}.';
+  String toString() => httpStatus != null
+      ? 'SocketRejectedException: the server refused the connection with '
+            'HTTP $httpStatus.'
+      : 'SocketRejectedException: the server closed the connection with code '
+            '$code${reason != null && reason!.isNotEmpty ? ' ($reason)' : ''}.';
 }
 
 /// Reported to `onError` when the offline queue is full and the oldest

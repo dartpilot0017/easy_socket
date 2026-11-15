@@ -195,4 +195,12 @@ void main() {
       await expectLater(s.connect(), throwsStateError);
     },
   );
+
+  test('browsers hide the HTTP status, so a 401 is retried', () async {
+    await server.command('set', {'rejectStatus': 401});
+    final s = socket();
+    s.connect().ignore();
+    await state(s, SocketState.reconnecting);
+    expect(s.state, SocketState.reconnecting);
+  });
 }

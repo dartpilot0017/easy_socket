@@ -140,8 +140,13 @@ twice. If a message must arrive, have the server acknowledge it (the
 
 ## Errors you might see in `onError`
 
-- `SocketRejectedException`: the server closed with a "refused" code, so the
-  socket stopped retrying. Using it again reopens it.
+- `SocketRejectedException`: the server refused this client, so the socket
+  stopped retrying. Using it again reopens it. It's reported when the server
+  closes with a "refused" code (1008, 4401, 4403…), or answers the connection
+  request with an HTTP 4xx status such as 401 or 403 (`httpStatus` holds it).
+  Browsers hide that HTTP status from web pages, so on the web those
+  failures are retried like any other connection error. To refuse web
+  clients cleanly, accept the connection and close it with a code like 4401.
 - `MessageDroppedException`: the offline queue was full; the oldest message
   was dropped.
 - `TimeoutException`: connecting, `onConnected`, or a heartbeat took too long.
@@ -158,7 +163,8 @@ EasySocket(
   maxReconnectDelay: Duration(seconds: 30),
   maxReconnectAttempts: null,   // null = retry forever
   // Stops retrying when the server refuses the client (close codes 1002,
-  // 1003, 1007, 1008, 4401, 4403) and reports a SocketRejectedException.
+  // 1003, 1007, 1008, 4400-4499, or an HTTP 4xx such as 401 or 403; 408 and
+  // 429 are still retried) and reports a SocketRejectedException.
   shouldReconnect: EasySocket.defaultShouldReconnect,
   maxQueuedMessages: 100,       // a dropped message is reported to onError
   connectTimeout: Duration(seconds: 10),

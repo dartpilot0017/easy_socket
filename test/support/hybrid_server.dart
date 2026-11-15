@@ -13,10 +13,17 @@ Future<void> hybridMain(StreamChannel<Object?> channel) async {
   Object? greeting;
   int? closeOnConnect;
   var replyToPing = false;
+  int? rejectStatus;
 
   final http = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
   http.listen((req) async {
     requests.add(req.uri.toString());
+    if (rejectStatus case final status?) {
+      req.response
+        ..statusCode = status
+        ..close();
+      return;
+    }
     final ws = await WebSocketTransformer.upgrade(req);
     connections++;
     if (closeOnConnect != null) {
@@ -51,6 +58,7 @@ Future<void> hybridMain(StreamChannel<Object?> channel) async {
         greeting = command['greeting'];
         closeOnConnect = command['closeOnConnect'] as int?;
         replyToPing = command['replyToPing'] == true;
+        rejectStatus = command['rejectStatus'] as int?;
     }
     channel.sink.add({
       'done': command['cmd'],
